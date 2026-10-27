@@ -1,0 +1,29 @@
+function [finalSocPercent, minSocPercent, totalChargeTimeMinutes, ...
+    numStops, statusCode] = simulinkEntryPoint(initialSocPercent, ...
+    marginSocPercent)
+%SIMULINKENTRYPOINT Numeric wrapper used by the generated Simulink model.
+%
+%   This function keeps the Simulink model simple: string route settings
+%   are read from evchargeSimConfig, while the model supplies numeric SoC
+%   inputs and receives numeric display outputs.
+
+config = evchargeSimConfig();
+result = evcharge.runChargingOptimization( ...
+    "InitialSoCPercent", double(initialSocPercent), ...
+    "MarginSoCPercent", double(marginSocPercent), ...
+    "StartAddress", config.StartAddress, ...
+    "DestinationAddress", config.DestinationAddress, ...
+    "Scenario", config.Scenario, ...
+    "UseLiveData", config.UseLiveData);
+
+assignin("base", "evChargingResult", result);
+socProfileTimeseries = timeseries( ...
+    result.SoCProfile.SoCPercent, result.SoCProfile.DistanceKm);
+assignin("base", "socProfileTimeseries", socProfileTimeseries);
+
+finalSocPercent = result.FinalSoCPercent;
+minSocPercent = result.MinimumSoCPercent;
+totalChargeTimeMinutes = result.TotalChargeTimeMinutes;
+numStops = height(result.Stops);
+statusCode = double(result.Status == "Feasible");
+end
