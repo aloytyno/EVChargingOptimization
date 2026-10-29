@@ -25,6 +25,52 @@ launchEVChargingPlannerApp
 
 FMI Open Data does not require an API key.
 
+## Speech-Driven Assistant (mockup)
+
+`launchEVAssistantApp` opens a voice-first planner for non-technical
+drivers. Tap the big button, say where you want to go ("Take me to Oulu"),
+and the assistant answers aloud: whether you can make it, where to charge
+and for how long, and the battery left on arrival. It also takes care of
+battery care, such as warming a cold battery before fast charging and
+keeping the home charge limit at 80% unless a trip needs more.
+
+How it works:
+
+- Speech-to-text: Audio Toolbox Whisper (local), with a small fix-up for
+  misheard Finnish place names (`evcharge.assistant.correctPlaceNames`).
+- Language model: a local Ollama model through the
+  [LLMs with MATLAB](https://github.com/matlab-deep-learning/llms-with-matlab)
+  add-on (`ollamaChat` with tool calling).
+- Tools (`evcharge.assistant.tools`): `get_vehicle_state`, `plan_trip`
+  (wraps `evcharge.runChargingOptimization`), `get_battery_advice`
+  (rule-based, `evcharge.assistant.batteryAdvice`), `set_charge_limit`, and
+  `start_preconditioning`. These are plain MATLAB functions, so they can
+  also be published as an MCP server later.
+- Text-to-speech: Audio Toolbox HiFi-GAN (local).
+- The "Simulated car" panel stands in for the vehicle's battery level,
+  location, temperatures, and model.
+
+One-time setup:
+
+```powershell
+winget install Ollama.Ollama
+ollama pull qwen3:8b
+```
+
+Then download and unzip the
+[Whisper small model](https://ssd.mathworks.com/supportfiles/audio/whisper-small.zip)
+so that `%USERPROFILE%\MATLAB\Whisper\whisper-small\whisper-small` contains
+`model.safetensors`. The model name, Whisper folder, and other settings are
+in `+evcharge/+assistant/config.m`.
+
+```matlab
+launchEVAssistantApp
+
+% Or without the UI:
+a = evcharge.assistant.Assistant();
+r = a.ask("Can I make it to Oulu without charging?")
+```
+
 The build script creates:
 
 - `EVChargingSimulation.slx`: Simulink-facing demo model.
@@ -57,3 +103,7 @@ table(results)
 
 The tests cover no-charge, one/multiple-charge, infeasible-margin, and
 Simulink entry-point scenarios using cached Finland data.
+
+`tests/tAssistantTools.m` and `tests/tAssistantLoop.m` cover the assistant
+tool layer and tool-calling loop offline, using a scripted fake LLM, so they
+need neither Ollama nor a microphone.

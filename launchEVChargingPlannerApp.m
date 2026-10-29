@@ -238,19 +238,7 @@ app.Figure.WindowButtonMotionFcn = @updateMapHover;
     end
 
     function plotSoc(result)
-        cla(app.SocAxes)
-        plot(app.SocAxes, result.SoCProfile.DistanceKm, ...
-            result.SoCProfile.SoCPercent, ...
-            LineWidth=2.2, Color=colors.accent)
-        yline(app.SocAxes, result.MarginSoCPercent, "--", ...
-            "Margin", Color=colors.warn)
-        if isfield(result, "DestinationSoCPercent") ...
-                && result.DestinationSoCPercent > result.MarginSoCPercent
-            yline(app.SocAxes, result.DestinationSoCPercent, ":", ...
-                "Destination target", Color=[0.47 0.78 0.96])
-        end
-        grid(app.SocAxes, "on")
-        ylim(app.SocAxes, [0 100])
+        evcharge.ui.plotSocProfile(app.SocAxes, result, colors)
     end
 
     function plotProfile(result)
@@ -277,34 +265,7 @@ app.Figure.WindowButtonMotionFcn = @updateMapHover;
     end
 
     function plotMap(result)
-        cla(app.MapAxes)
-        hold(app.MapAxes, "on")
-        routePoints = routePointsForMap(result);
-        if ~isempty(routePoints)
-            geoplot(app.MapAxes, routePoints.Latitude, routePoints.Longitude, ...
-                LineWidth=3.0, Color=colors.accent)
-            geoscatter(app.MapAxes, routePoints.Latitude(1), ...
-                routePoints.Longitude(1), 72, "filled", ...
-                MarkerFaceColor=[0.47 0.78 0.96], MarkerEdgeColor="none")
-            geoscatter(app.MapAxes, routePoints.Latitude(end), ...
-                routePoints.Longitude(end), 72, "filled", ...
-                MarkerFaceColor=colors.warn, MarkerEdgeColor="none")
-        end
-
-        if ~isempty(result.Stops)
-            geoscatter(app.MapAxes, result.Stops.Latitude, ...
-                result.Stops.Longitude, 92, "filled", ...
-                MarkerFaceColor=[1.0 0.85 0.22], ...
-                MarkerEdgeColor=[0.04 0.06 0.065], LineWidth=1.5)
-            app.MapStopData = result.Stops(:, ["StationName", "Latitude", ...
-                "Longitude", "PowerKW"]);
-        else
-            app.MapStopData = table();
-        end
-
-        if ~isempty(routePoints)
-            padGeoLimits(app.MapAxes, routePoints)
-        end
+        app.MapStopData = evcharge.ui.plotRouteMap(app.MapAxes, result, colors);
         app.MapHoverLabel.Text = "Hover over a charging stop";
     end
 
@@ -345,27 +306,4 @@ label = uilabel(parent, ...
     FontWeight="bold", ...
     FontColor=colors.text, ...
     HorizontalAlignment="center");
-end
-
-function routePoints = routePointsForMap(result)
-if isfield(result, "RoutePoints") && ~isempty(result.RoutePoints) ...
-        && height(result.RoutePoints) > 0
-    routePoints = result.RoutePoints;
-elseif all(ismember(["Latitude", "Longitude"], ...
-        result.RouteEnergy.Properties.VariableNames))
-    routePoints = result.RouteEnergy(:, ["Latitude", "Longitude"]);
-else
-    routePoints = table();
-end
-end
-
-function padGeoLimits(ax, routePoints)
-latLimits = [min(routePoints.Latitude), max(routePoints.Latitude)];
-lonLimits = [min(routePoints.Longitude), max(routePoints.Longitude)];
-if diff(latLimits) == 0 || diff(lonLimits) == 0
-    return
-end
-latPad = diff(latLimits) * 0.08;
-lonPad = diff(lonLimits) * 0.08;
-geolimits(ax, latLimits + [-latPad latPad], lonLimits + [-lonPad lonPad])
 end

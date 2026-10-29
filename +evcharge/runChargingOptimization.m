@@ -19,6 +19,7 @@ arguments
     options.MaxStops (1,1) double = Inf
     options.DestinationSoCPercent (1,1) double = NaN
     options.TargetChargeSoCPercent (1,1) double = NaN
+    options.OutsideTemperatureC (1,1) double = NaN
 end
 
 vehicle = evcharge.selectVehicle(options.VehicleID);
@@ -36,6 +37,14 @@ routeData = evcharge.getRouteData( ...
     "Scenario", options.Scenario, ...
     "UseLiveData", options.UseLiveData, ...
     "DepartureTime", options.DepartureTime);
+
+% Cached routes carry no weather, so apply the given outside temperature
+% when one is provided. Live routes keep their per-segment forecast.
+if ~isnan(options.OutsideTemperatureC) && ~ismember("TemperatureC", ...
+        routeData.RouteSegments.Properties.VariableNames)
+    routeData.RouteSegments.TemperatureC = options.OutsideTemperatureC ...
+        * ones(height(routeData.RouteSegments), 1);
+end
 
 routeEnergy = evcharge.estimateEnergy(routeData.RouteSegments, vehicle);
 plan = evcharge.planChargingStops(routeEnergy, ...
