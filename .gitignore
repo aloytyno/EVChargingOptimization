@@ -38,3 +38,12 @@ codegen/
 # SimBiology backup files
 *.sbproj.backup
 *.sbproj.bak
+
+# Python bridge
+backend/.venv/
+__pycache__/
+.pytest_cache/
+
+# Flutter UI (flutter create also writes ui_flutter/.gitignore)
+ui_flutter/build/
+ui_flutter/.dart_tool/

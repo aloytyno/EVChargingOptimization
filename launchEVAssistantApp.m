@@ -308,9 +308,9 @@ startUp();
     end
 
     function showPlan(plan)
-        app.NextLabel.Text = nextActionText(plan);
+        app.NextLabel.Text = evcharge.ui.nextActionText(plan);
         app.ArrivalValue.Text = sprintf("%.0f %%", plan.FinalSoCPercent);
-        app.TripValue.Text = formatDuration(plan.TotalTripTimeMinutes);
+        app.TripValue.Text = evcharge.ui.formatDuration(plan.TotalTripTimeMinutes);
         app.StopsValue.Text = string(height(plan.Stops));
         if plan.Status ~= "Feasible"
             app.ArrivalValue.FontColor = colors.warn;
@@ -402,30 +402,6 @@ startUp();
         delete(speech);
         delete(app.Figure);
     end
-end
-
-function text = nextActionText(plan)
-if plan.Status ~= "Feasible"
-    text = "This trip doesn't work as planned: " + plan.StatusMessage;
-elseif isempty(plan.Stops)
-    text = sprintf("Drive straight there. You'll arrive with %.0f%%.", ...
-        plan.FinalSoCPercent);
-else
-    summary = evcharge.assistant.summarizePlan(plan);
-    stop = summary.stops(1);
-    text = sprintf("Charge at %s in %s\n%d min, up to %d%%", stop.name, ...
-        formatDuration(stop.drive_minutes_to_stop), stop.charge_minutes, ...
-        stop.leave_percent);
-end
-end
-
-function text = formatDuration(minutes)
-minutes = round(minutes / 5) * 5;
-if minutes < 60
-    text = sprintf("%d min", minutes);
-else
-    text = sprintf("%d h %02d min", floor(minutes / 60), mod(minutes, 60));
-end
 end
 
 function [ok, message] = checkOllama(cfg)

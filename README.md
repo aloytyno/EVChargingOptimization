@@ -87,6 +87,45 @@ The live adapter uses Google Routes, Google Elevation, FMI weather, and Open
 Charge Map, then falls back to cached Finland data if a live service is not
 available.
 
+## Flutter UI (preview)
+
+`ui_flutter/` is a Flutter version of the assistant with a futuristic dark
+UI. The same code is meant to become the Android app later. It talks to
+MATLAB through a small Python service:
+
+```
+Flutter UI  --HTTP/WebSocket-->  backend/ (FastAPI)  --MATLAB Engine-->  evcharge.api.request
+```
+
+- `+evcharge/+api/request.m` is a JSON-in/JSON-out command interface
+  (`ask`, `getState`, `setState`, `startListening`, ...) that keeps the
+  assistant, simulated car, and speech in a persistent session.
+- `backend/` serializes all MATLAB calls on one thread, forwards progress
+  ("Checking the route to Oulu.") over the `/events` WebSocket, and returns
+  replies before they are spoken.
+- Speech still runs in MATLAB (Whisper + HiFi-GAN), on the PC's microphone
+  and speakers.
+
+Setup (once): install the [Flutter SDK](https://docs.flutter.dev/get-started/install)
+and run `flutter pub get` in `ui_flutter/`. `backend/run.ps1` creates the
+Python virtual environment and installs `backend/requirements.txt`
+(including `matlabengine` for R2026a) on first run.
+
+Run:
+
+```powershell
+backend\run.ps1                 # starts MATLAB (or attaches to a shared session) on :8765
+cd ui_flutter; flutter run -d windows
+```
+
+To reuse a MATLAB you already have open (faster startup), run
+`matlab.engine.shareEngine("evcharge")` in it and start the backend with
+`$env:EV_MATLAB_SESSION="evcharge"`. `EV_LIVE_DATA=0` uses cached routes
+only; `EV_SPEECH=0` turns off the microphone and speech output.
+
+Tests: `pytest` in `backend/` (fake bridge, no MATLAB) and `flutter test` in
+`ui_flutter/`.
+
 ## Demo Defaults
 
 - Country: Finland.
