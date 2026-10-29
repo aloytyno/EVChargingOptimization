@@ -1,17 +1,21 @@
 classdef VehicleState < handle
     %VEHICLESTATE Simulated car state shared by the assistant and the UI.
     %
-    %   STATE = EVCHARGE.ASSISTANT.VEHICLESTATE creates a car parked in
-    %   Helsinki with 72% charge. The assistant tools read and change this
-    %   object; listen to the StateChanged event to refresh a UI.
+    %   STATE = EVCHARGE.ASSISTANT.VEHICLESTATE creates a Kia EV6 parked in
+    %   Helsinki with 72% charge that should arrive with at least 10%. The
+    %   assistant tools read and change this object; listen to the
+    %   StateChanged event to refresh a UI.
+    %
+    %   OutsideTempC is NaN until UPDATEOUTSIDETEMPERATURE fetches the FMI
+    %   forecast for the current location.
 
     properties (SetObservable)
         SoCPercent (1,1) double = 72
         LocationName (1,1) string = "Helsinki"
-        OutsideTempC (1,1) double = 5
+        ArrivalSoCPercent (1,1) double = 10
+        OutsideTempC (1,1) double = NaN
         BatteryTempC (1,1) double = 12
-        VehicleID (1,1) string = "tesla-model-y-performance"
-        ChargeLimitPercent (1,1) double = 80
+        VehicleID (1,1) string = "kia-ev6-long-range-2wd"
         PreconditioningOn (1,1) logical = false
         PreconditioningTarget (1,1) string = ""
         ActivePlan = []
@@ -58,8 +62,38 @@ classdef VehicleState < handle
                 "outside_temperature_c", round(obj.OutsideTempC), ...
                 "battery_temperature_c", round(obj.BatteryTempC), ...
                 "vehicle", v.Name, ...
-                "charge_limit_percent", round(obj.ChargeLimitPercent), ...
+                "target_arrival_battery_percent", round(obj.ArrivalSoCPercent), ...
                 "preconditioning_on", obj.PreconditioningOn);
+        end
+
+        function [ok, message] = updateOutsideTemperature(obj)
+            %UPDATEOUTSIDETEMPERATURE Set OutsideTempC from the FMI forecast.
+            %
+            %   [OK, MESSAGE] = UPDATEOUTSIDETEMPERATURE(STATE) fetches the
+            %   current forecast temperature at the car's location. On
+            %   failure OutsideTempC becomes NaN (unknown) and MESSAGE says
+            %   why.
+            locations = obj.knownLocations();
+            row = locations(locations.Name == obj.LocationName, :);
+            message = "";
+            try
+                if isempty(row)
+                    error("evcharge:assistant:UnknownLocation", ...
+                        "No coordinates for %s.", obj.LocationName);
+                end
+                nowUtc = datetime("now", TimeZone="UTC");
+                forecast = evcharge.internal.fetchFmiTemperatureForecast( ...
+                    row.Latitude, row.Longitude, nowUtc - hours(1), ...
+                    nowUtc + hours(2));
+                obj.OutsideTempC = interp1( ...
+                    hours(forecast.TimeUtc - nowUtc), ...
+                    forecast.TemperatureC, 0, "linear", "extrap");
+                ok = true;
+            catch ME
+                obj.OutsideTempC = NaN;
+                ok = false;
+                message = "Outside temperature unavailable: " + ME.message;
+            end
         end
     end
 

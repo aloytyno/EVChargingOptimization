@@ -41,8 +41,17 @@ root.ColumnSpacing = 14;
 root.BackgroundColor = colors.bg;
 
 %% Left column: talk button, conversation, simulated car
+% Simulated car panel layout: the slider row is taller so its tick labels
+% fit, and the panel height is derived from the rows so nothing is clipped.
+carRowHeights = {52, 34, 34, 34, 34, 34};
+carRowSpacing = 14;
+carPadding = [16 14 16 14];
+carPanelHeight = sum([carRowHeights{:}]) ...
+    + carRowSpacing * (numel(carRowHeights) - 1) ...
+    + carPadding(2) + carPadding(4) + 4;
+
 left = uigridlayout(root, [6 1]);
-left.RowHeight = {150, 30, "1x", 36, 34, 250};
+left.RowHeight = {130, 30, "1x", 36, 34, carPanelHeight};
 left.Padding = [0 0 0 0];
 left.RowSpacing = 10;
 left.BackgroundColor = colors.bg;
@@ -73,30 +82,34 @@ app.CarToggle = uibutton(left, "state", Text="Simulated car ▾", Value=true, ..
     BackgroundColor=colors.panel2, FontColor=colors.muted, ...
     ValueChangedFcn=@onToggleCar);
 
-app.CarPanel = uipanel(left, Title="Simulated car", ...
-    ForegroundColor=colors.muted, BackgroundColor=colors.panel, ...
+app.CarPanel = uipanel(left, BackgroundColor=colors.panel, ...
     BorderColor=colors.panel2);
 carGrid = uigridlayout(app.CarPanel, [6 2]);
 carGrid.ColumnWidth = {130, "1x"};
-carGrid.RowHeight = repmat({30}, 1, 6);
-carGrid.Padding = [12 8 12 8];
+carGrid.RowHeight = carRowHeights;
+carGrid.RowSpacing = carRowSpacing;
+carGrid.ColumnSpacing = 14;
+carGrid.Padding = carPadding;
 carGrid.BackgroundColor = colors.panel;
 
 app.SocLabel = uilabel(carGrid, FontColor=colors.muted);
 app.SocSlider = uislider(carGrid, Limits=[5 100], Value=state.SoCPercent, ...
     FontColor=colors.muted, ValueChangedFcn=@(src, ~) setState("SoCPercent", ...
     round(src.Value)));
+uilabel(carGrid, Text="Arrive with (%)", FontColor=colors.muted);
+app.ArrivalSoc = uispinner(carGrid, Limits=[5 80], Step=5, ...
+    Value=state.ArrivalSoCPercent, BackgroundColor=colors.midGray, ...
+    FontColor=colors.text, Tooltip="Battery you want left at the destination", ...
+    ValueChangedFcn=@(src, ~) setState("ArrivalSoCPercent", src.Value));
 uilabel(carGrid, Text="Location", FontColor=colors.muted);
 locations = evcharge.assistant.VehicleState.knownLocations();
 app.Location = uidropdown(carGrid, Items=locations.Name, ...
     Value=state.LocationName, BackgroundColor=colors.midGray, ...
     FontColor=colors.text, ValueChangedFcn=@(src, ~) setState( ...
     "LocationName", string(src.Value)));
-uilabel(carGrid, Text="Outside (°C)", FontColor=colors.muted);
-app.OutsideTemp = uispinner(carGrid, Limits=[-35 35], ...
-    Value=state.OutsideTempC, BackgroundColor=colors.midGray, ...
-    FontColor=colors.text, ValueChangedFcn=@(src, ~) setState( ...
-    "OutsideTempC", src.Value));
+uilabel(carGrid, Text="Outside", FontColor=colors.muted);
+app.OutsideTemp = uilabel(carGrid, Text="Fetching from FMI...", ...
+    FontColor=colors.text, Tooltip="Forecast from FMI Open Data");
 uilabel(carGrid, Text="Battery (°C)", FontColor=colors.muted);
 app.BatteryTemp = uispinner(carGrid, Limits=[-30 45], ...
     Value=state.BatteryTempC, BackgroundColor=colors.midGray, ...
@@ -108,8 +121,6 @@ app.Vehicle = uidropdown(carGrid, Items=string({profiles.Name}), ...
     ItemsData=string({profiles.ID}), Value=state.VehicleID, ...
     BackgroundColor=colors.midGray, FontColor=colors.text, ...
     ValueChangedFcn=@(src, ~) setState("VehicleID", string(src.Value)));
-app.LimitLabel = uilabel(carGrid, FontColor=colors.muted);
-app.LimitLabel.Layout.Column = [1 2];
 
 %% Center column: next action, trip summary, SoC profile
 center = uigridlayout(root, [3 1]);
@@ -161,6 +172,11 @@ mapGrid.BackgroundColor = colors.panel;
 app.MapAxes = geoaxes(mapGrid, Basemap="streets-dark");
 title(app.MapAxes, "Route", Color=colors.text)
 geolimits(app.MapAxes, [59.8 65.3], [21.5 29.5])
+% A clean map: no latitude/longitude ticks, tick labels, or axis labels.
+app.MapAxes.LatitudeAxis.Visible = "off";
+app.MapAxes.LongitudeAxis.Visible = "off";
+app.MapAxes.LatitudeLabel.String = "";
+app.MapAxes.LongitudeLabel.String = "";
 
 stateListener = addlistener(state, "StateChanged", @(~, ~) refreshCar());
 refreshCar();
@@ -169,6 +185,7 @@ startUp();
 
 %% Callbacks
     function startUp()
+        updateOutsideTemperature();
         [ok, message] = checkOllama(cfg);
         modelLoad = [];
         if ok
@@ -310,12 +327,16 @@ startUp();
         end
         app.SocLabel.Text = sprintf("Battery %d %%", round(state.SoCPercent));
         app.SocSlider.Value = state.SoCPercent;
+        app.ArrivalSoc.Value = state.ArrivalSoCPercent;
         app.Location.Value = state.LocationName;
-        app.OutsideTemp.Value = state.OutsideTempC;
+        if isnan(state.OutsideTempC)
+            app.OutsideTemp.Text = "Unavailable";
+        else
+            app.OutsideTemp.Text = sprintf("%.0f °C (FMI forecast)", ...
+                state.OutsideTempC);
+        end
         app.BatteryTemp.Value = state.BatteryTempC;
         app.Vehicle.Value = state.VehicleID;
-        app.LimitLabel.Text = sprintf("Home charge limit: %d %%", ...
-            round(state.ChargeLimitPercent));
         if state.PreconditioningOn
             app.WarmValue.Text = "On";
             app.WarmValue.FontColor = colors.warn;
@@ -332,12 +353,23 @@ startUp();
         state.(name) = value;
         if name == "LocationName"
             state.PreconditioningOn = false;
+            updateOutsideTemperature();
+        end
+    end
+
+    function updateOutsideTemperature()
+        app.OutsideTemp.Text = "Fetching from FMI...";
+        drawnow
+        [ok, message] = state.updateOutsideTemperature();
+        refreshCar();
+        if ~ok
+            app.OutsideTemp.Tooltip = message;
         end
     end
 
     function onToggleCar(src, ~)
         if src.Value
-            left.RowHeight{6} = 250;
+            left.RowHeight{6} = carPanelHeight;
             src.Text = "Simulated car ▾";
         else
             left.RowHeight{6} = 0;

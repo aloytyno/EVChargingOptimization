@@ -54,21 +54,22 @@ classdef tAssistantLoop < matlab.unittest.TestCase
         end
 
         function failingToolStartFcnIsIgnored(testCase)
-            responses = {toolCallMessage("set_charge_limit", ...
-                struct("percent", 90)), textMessage("Done.")};
+            responses = {toolCallMessage("start_preconditioning", ...
+                struct("station", "Lahti HPC")), textMessage("Done.")};
             assistant = makeAssistant(responses);
             assistant.ToolStartFcn = @(~, ~) error("test:boom", "boom");
-            reply = assistant.ask("Charge to 90");
+            reply = assistant.ask("Warm up the battery");
             testCase.verifyEqual(reply.Text, "Done.");
-            testCase.verifyEqual(assistant.State.ChargeLimitPercent, 90);
+            testCase.verifyTrue(assistant.State.PreconditioningOn);
         end
 
         function argumentsAsJsonText(testCase)
-            responses = {toolCallMessage("set_charge_limit", ...
-                '{"percent": 90}'), textMessage("Done.")};
+            responses = {toolCallMessage("start_preconditioning", ...
+                '{"station": "Lahti HPC"}'), textMessage("Done.")};
             assistant = makeAssistant(responses);
-            assistant.ask("Charge to 90 tonight");
-            testCase.verifyEqual(assistant.State.ChargeLimitPercent, 90);
+            assistant.ask("Warm up the battery for Lahti");
+            testCase.verifyEqual(assistant.State.PreconditioningTarget, ...
+                "Lahti HPC");
         end
 
         function thinkingTagsAreRemoved(testCase)

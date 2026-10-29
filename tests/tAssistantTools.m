@@ -25,7 +25,7 @@ classdef tAssistantTools < matlab.unittest.TestCase
     methods (Test)
         function toolDefinitionsMatchDispatcher(testCase)
             [defs, runTool] = evcharge.assistant.tools(UseLiveData=false);
-            testCase.verifyNumElements(defs, 5);
+            testCase.verifyNumElements(defs, 4);
             for k = 1:numel(defs)
                 name = defs(k).FunctionName;
                 result = runTool(name, struct(), testCase.State);
@@ -96,33 +96,36 @@ classdef tAssistantTools < matlab.unittest.TestCase
                 "start_preconditioning");
         end
 
-        function adviceLowersHighDailyLimit(testCase)
-            testCase.State.ChargeLimitPercent = 100;
-            advice = testCase.RunTool("get_battery_advice", ...
-                struct("context", "daily"), testCase.State);
-            testCase.verifyEqual(advice.suggested_actions(1).value, 80);
-        end
-
-        function adviceRaisesLimitWhenTripNeedsIt(testCase)
-            testCase.State.SoCPercent = 90;
-            plan = testCase.RunTool("plan_trip", struct("destination", ...
-                "Tampere", "arrival_battery_percent", 40), testCase.State);
-            testCase.assertEqual(plan.number_of_stops, 0);
-            testCase.State.ChargeLimitPercent = 50;
+        function adviceSaysWhenHomeChargingSkipsStops(testCase)
+            testCase.State.SoCPercent = 50;
+            plan = testCase.RunTool("plan_trip", ...
+                struct("destination", "Tampere"), testCase.State);
+            testCase.assertTrue(plan.can_reach_destination);
+            testCase.assertGreaterThan(plan.number_of_stops, 0);
             advice = testCase.RunTool("get_battery_advice", ...
                 struct("context", "before_trip"), testCase.State);
-            testCase.verifyEqual(advice.suggested_actions(1).action, ...
-                "set_charge_limit");
-            testCase.verifyGreaterThan(advice.suggested_actions(1).value, 50);
+            testCase.verifySubstring(advice.tips(1), "skip the charging stops");
         end
 
-        function chargeLimitIsClamped(testCase)
-            result = testCase.RunTool("set_charge_limit", ...
-                struct("percent", 120), testCase.State);
-            testCase.verifyEqual(result.charge_limit_percent, 100);
-            testCase.RunTool("set_charge_limit", struct("percent", 10), ...
+        function adviceSaysStopsNeededEvenWhenFull(testCase)
+            testCase.RunTool("plan_trip", struct("destination", "Oulu"), ...
                 testCase.State);
-            testCase.verifyEqual(testCase.State.ChargeLimitPercent, 50);
+            advice = testCase.RunTool("get_battery_advice", ...
+                struct("context", "before_trip"), testCase.State);
+            testCase.verifySubstring(advice.tips(1), "even with a full battery");
+        end
+
+        function savedArrivalTargetIsUsed(testCase)
+            testCase.State.ArrivalSoCPercent = 30;
+            result = testCase.RunTool("plan_trip", ...
+                struct("destination", "Oulu"), testCase.State);
+            testCase.verifyEqual(testCase.State.ActivePlan.DestinationSoCPercent, 30);
+            testCase.verifyGreaterThanOrEqual(result.arrival_battery_percent, 30);
+
+            % An explicit request in the conversation wins.
+            testCase.RunTool("plan_trip", struct("destination", "Oulu", ...
+                "arrival_battery_percent", 20), testCase.State);
+            testCase.verifyEqual(testCase.State.ActivePlan.DestinationSoCPercent, 20);
         end
 
         function vehicleStateIsJsonFriendly(testCase)
@@ -130,6 +133,8 @@ classdef tAssistantTools < matlab.unittest.TestCase
             decoded = jsondecode(jsonencode(result));
             testCase.verifyEqual(decoded.battery_percent, 72);
             testCase.verifyEqual(string(decoded.location), "Helsinki");
+            testCase.verifyEqual(decoded.target_arrival_battery_percent, 10);
+            testCase.verifyFalse(isfield(decoded, "charge_limit_percent"));
         end
 
         function misheardPlaceNamesAreCorrected(testCase)

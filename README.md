@@ -32,23 +32,28 @@ drivers. Tap the big button, say where you want to go ("Take me to Oulu"),
 and the assistant answers aloud: whether you can make it, where to charge
 and for how long, and the battery left on arrival. It also takes care of
 battery care, such as warming a cold battery before fast charging and
-keeping the home charge limit at 80% unless a trip needs more.
+telling you how full to charge at home before a trip.
 
 How it works:
 
 - Speech-to-text: Audio Toolbox Whisper (local), with a small fix-up for
   misheard Finnish place names (`evcharge.assistant.correctPlaceNames`).
-- Language model: a local Ollama model through the
+- Language model: a local Ollama model with tool calling. The
+  conversation uses `messageHistory` from the
   [LLMs with MATLAB](https://github.com/matlab-deep-learning/llms-with-matlab)
-  add-on (`ollamaChat` with tool calling).
+  add-on; requests go straight to Ollama's `/api/chat` with thinking
+  turned off (`evcharge.assistant.ollamaGenerator`), which is much faster
+  for reasoning models such as qwen3.
 - Tools (`evcharge.assistant.tools`): `get_vehicle_state`, `plan_trip`
   (wraps `evcharge.runChargingOptimization`), `get_battery_advice`
-  (rule-based, `evcharge.assistant.batteryAdvice`), `set_charge_limit`, and
+  (rule-based, `evcharge.assistant.batteryAdvice`), and
   `start_preconditioning`. These are plain MATLAB functions, so they can
   also be published as an MCP server later.
 - Text-to-speech: Audio Toolbox HiFi-GAN (local).
 - The "Simulated car" panel stands in for the vehicle's battery level,
-  location, temperatures, and model.
+  location, battery temperature, and model (Kia EV6 by default), plus the
+  battery you want left on arrival. The outside temperature comes from the
+  FMI forecast for the selected location.
 
 One-time setup:
 
