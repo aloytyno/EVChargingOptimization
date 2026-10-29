@@ -7,7 +7,7 @@ import 'state/app_state.dart';
 import 'theme.dart';
 import 'widgets/car_panel.dart';
 import 'widgets/chat_view.dart';
-import 'widgets/mic_orb.dart';
+import 'widgets/kitt_voice_box.dart';
 import 'widgets/next_card.dart';
 import 'widgets/route_map.dart';
 import 'widgets/soc_chart.dart';
@@ -212,7 +212,7 @@ class _ConversationColumnState extends State<_ConversationColumn> {
       child: Column(
         children: [
           const SizedBox(height: 4),
-          MicOrb(
+          KittVoiceBox(
             mode: s.mode,
             onTap: canTalk || s.listening ? s.toggleListening : null,
           ),

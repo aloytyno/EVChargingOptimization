@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ev_assistant/api/models.dart';
+import 'package:ev_assistant/state/app_state.dart';
 import 'package:ev_assistant/theme.dart';
+import 'package:ev_assistant/widgets/kitt_voice_box.dart';
 import 'package:ev_assistant/widgets/next_card.dart';
 import 'package:ev_assistant/widgets/stat_tiles.dart';
 
@@ -75,6 +77,16 @@ void main() {
     expect(find.text('Charge at Lahti HPC in 1 h 05 min'), findsOneWidget);
     expect(find.text('20 min, up to 60%'), findsOneWidget);
     expect(find.text('Helsinki  →  Oulu'), findsOneWidget);
+  });
+
+  testWidgets('KITT voice box keeps animating', (tester) async {
+    await tester.pumpWidget(host(
+        KittVoiceBox(mode: AssistantMode.speaking, onTap: () {})));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+    // A running animation clock keeps requesting frames; a frozen one
+    // (ticker never started) does not.
+    expect(tester.binding.hasScheduledFrame, isTrue);
   });
 
   testWidgets('stat tiles show dashes without a plan and values with one',
